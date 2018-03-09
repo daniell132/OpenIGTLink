@@ -285,3 +285,7 @@ ENDIF()
 IF(BUILD_DOCUMENTATION)
   ADD_SUBDIRECTORY(Documents/Doxygen)
 ENDIF()
+
+#-----------------------------------------------------------------------------
+# Laboratorium
+ ADD_SUBDIRECTORY(Examples/Lab_PWP)
