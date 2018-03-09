@@ -34,13 +34,14 @@
 #endif //OpenIGTLink_PROTOCOL_VERSION >= 2
 
 
+void ModifyAndSendPoints(igtl::Socket * socket, igtl::PointElement::Pointer pointElement);
 int ReceiveTransform(igtl::Socket * socket, igtl::MessageHeader * header);
 int ReceivePosition(igtl::Socket * socket, igtl::MessageHeader * header);
 int ReceiveImage(igtl::Socket * socket, igtl::MessageHeader * header);
 int ReceiveStatus(igtl::Socket * socket, igtl::MessageHeader * header);
 
 #if OpenIGTLink_PROTOCOL_VERSION >= 2
-int ReceivePoint(igtl::Socket * socket, igtl::MessageHeader * header);
+std::vector<igtl::PointElement::Pointer> ReceivePoint(igtl::Socket * socket, igtl::MessageHeader * header);
 int ReceiveTrajectory(igtl::Socket * socket, igtl::MessageHeader::Pointer& header);
 int ReceiveString(igtl::Socket * socket, igtl::MessageHeader * header);
 int ReceiveBind(igtl::Socket * socket, igtl::MessageHeader * header);
@@ -62,6 +63,8 @@ int main(int argc, char* argv[])
 
   int    port     = atoi(argv[1]);
 
+	//int port = 44321;
+
   igtl::ServerSocket::Pointer serverSocket;
   serverSocket = igtl::ServerSocket::New();
   int r = serverSocket->CreateServer(port);
@@ -73,8 +76,12 @@ int main(int argc, char* argv[])
     }
 
   igtl::Socket::Pointer socket;
+
+  std::vector<igtl::PointElement::Pointer> points;
   
-  while (1)
+
+  bool receiveAndSend = false;
+  while (!receiveAndSend)
     {
     //------------------------------------------------------------
     // Waiting for Connection
@@ -93,7 +100,7 @@ int main(int argc, char* argv[])
 
       //------------------------------------------------------------
       // loop
-      for (int i = 0; i < 100; i ++)
+      for (int i = 0; i < 100 && !receiveAndSend; i ++)
         {
 
         // Initialize receive buffer
@@ -144,7 +151,7 @@ int main(int argc, char* argv[])
 #if OpenIGTLink_PROTOCOL_VERSION >= 2
         else if (strcmp(headerMsg->GetDeviceType(), "POINT") == 0)
           {
-          ReceivePoint(socket, headerMsg);
+          points = ReceivePoint(socket, headerMsg);
           }
         else if (strcmp(headerMsg->GetDeviceType(), "TRAJ") == 0)
           {
@@ -170,6 +177,13 @@ int main(int argc, char* argv[])
           std::cerr << "Size : " << headerMsg->GetBodySizeToRead() << std::endl;
           socket->Skip(headerMsg->GetBodySizeToRead(), 0);
           }
+
+			igtl::Sleep(500);
+			for(int i = 0 ; i < 3; i++)
+			{
+  				ModifyAndSendPoints(socket, points[i]);
+			}
+			receiveAndSend = true;
         }
       }
     }
@@ -179,6 +193,22 @@ int main(int argc, char* argv[])
   
   socket->CloseSocket();
 
+}
+
+void ModifyAndSendPoints(igtl::Socket * socket, igtl::PointElement::Pointer pointElement)
+{
+	igtl::PointMessage::Pointer pointMsg;
+	pointMsg = igtl::PointMessage::New();
+	pointMsg->SetDeviceName("PointSender");
+
+	igtlFloat32 x,y,z;
+	pointElement->GetPosition(x,y,z);
+	pointElement->SetPosition(-x,-y,-z);
+
+	pointMsg->AddPointElement(pointElement);
+	pointMsg->Pack();
+  
+	socket->Send(pointMsg->GetPackPointer(), pointMsg->GetPackSize());
 }
 
 
@@ -337,14 +367,14 @@ int ReceiveStatus(igtl::Socket * socket, igtl::MessageHeader * header)
 
 
 #if OpenIGTLink_PROTOCOL_VERSION >= 2
-int ReceivePoint(igtl::Socket * socket, igtl::MessageHeader * header)
+std::vector<igtl::PointElement::Pointer> ReceivePoint(igtl::Socket * socket, igtl::MessageHeader * header)
 {
+	std::vector<igtl::PointElement::Pointer> points;
 
   std::cerr << "Receiving POINT data type." << std::endl;
 
   // Create a message buffer to receive transform data
-  igtl::PointMessage::Pointer pointMsg;
-  pointMsg = igtl::PointMessage::New();
+  igtl::PointMessage::Pointer pointMsg = igtl::PointMessage::New();
   pointMsg->SetMessageHeader(header);
   pointMsg->AllocatePack();
 
@@ -377,10 +407,12 @@ int ReceivePoint(igtl::Socket * socket, igtl::MessageHeader * header)
       std::cerr << " Radius    : " << std::fixed << pointElement->GetRadius() << std::endl;
       std::cerr << " Owner     : " << pointElement->GetOwner() << std::endl;
       std::cerr << "================================" << std::endl;
+
+	  points.push_back(pointElement);
       }
     }
 
-  return 1;
+  return points;
 }
 
 int ReceiveTrajectory(igtl::Socket * socket, igtl::MessageHeader::Pointer& header)
