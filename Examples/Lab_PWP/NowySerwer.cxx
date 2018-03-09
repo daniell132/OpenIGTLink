@@ -179,12 +179,12 @@ int main(int argc, char* argv[])
           }
 
 			igtl::Sleep(500);
-			for(int i = 0 ; i < 3; i++)
+			for(int i = 0 ; i < points.size(); i++)
 			{
   				ModifyAndSendPoints(socket, points[i]);
 			}
 			receiveAndSend = true;
-        }
+			}
       }
     }
     
